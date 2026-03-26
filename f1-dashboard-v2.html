@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 2026 指挥中心 - 实时数据版 V2</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #FF8000; --primary-dark: #E67300; --secondary: #47C7FC;
+            --bg-dark: #0D0D0D; --bg-card: #1A1A1A; --bg-card-hover: #252525;
+            --text-primary: #FFFFFF; --text-secondary: #B0B0B0; --border: #2A2A2A;
+        }
+        [data-team="mclaren"] { --primary: #FF8000; --primary-dark: #E67300; --secondary: #47C7FC; }
+        [data-team="redbull"] { --primary: #1E41FF; --primary-dark: #1530CC; --secondary: #FF1E1E; }
+        [data-team="ferrari"] { --primary: #FF0000; --primary-dark: #CC0000; --secondary: #FFFF00; }
+        [data-team="mercedes"] { --primary: #00D2BE; --primary-dark: #00A896; --secondary: #C0C0C0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-dark); color: var(--text-primary); min-height: 100vh; transition: all 0.3s ease; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .loading { display: flex; justify-content: center; align-items: center; height: 200px; }
+        .spinner { width: 50px; height: 50px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error { background: rgba(255, 0, 0, 0.1); border: 1px solid #ff0000; color: #ff6666; padding: 15px 20px; border-radius: 10px; margin: 20px 0; text-align: center; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; border-bottom: 2px solid var(--border); margin-bottom: 30px; flex-wrap: wrap; gap: 15px; }
+        .logo { display: flex; align-items: center; gap: 12px; }
+        .logo h1 { font-family: 'Orbitron', sans-serif; font-size: 28px; font-weight: 900; color: var(--primary); text-transform: uppercase; letter-spacing: 2px; }
+        .logo span { color: var(--text-secondary); font-size: 14px; }
+        .refresh-btn { padding: 8px 16px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); border-radius: 20px; cursor: pointer; font-size: 12px; transition: all 0.3s ease; }
+        .refresh-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .refresh-btn.loading { opacity: 0.5; pointer-events: none; }
+        .team-switcher { display: flex; gap: 10px; flex-wrap: wrap; }
+        .team-btn { padding: 10px 20px; border: 2px solid var(--border); background: var(--bg-card); color: var(--text-primary); border-radius: 30px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; }
+        .team-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .team-btn.active { border-color: var(--primary); background: var(--primary); color: #000; }
+        .team-btn::before { content: ''; width: 12px; height: 12px; border-radius: 50%; }
+        .team-btn[data-set-team="mclaren"]::before { background: #FF8000; }
+        .team-btn[data-set-team="redbull"]::before { background: #1E41FF; }
+        .team-btn[data-set-team="ferrari"]::before { background: #FF0000; }
+        .team-btn[data-set-team="mercedes"]::before { background: #00D2BE; }
+        .countdown-section { background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card-hover) 100%); border-radius: 20px; padding: 30px; margin-bottom: 30px; border: 1px solid var(--border); position: relative; overflow: hidden; }
+        .countdown-section::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, var(--primary), var(--secondary)); }
+        .countdown-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 15px; }
+        .next-race { font-size: 24px; font-weight: 700; }
+        .next-race .race-name { color: var(--primary); }
+        .race-info { display: flex; gap: 20px; flex-wrap: wrap; }
+        .race-info-item { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-secondary); }
+        .race-info-item strong { color: var(--text-primary); }
+        .countdown { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+        .countdown-item { text-align: center; min-width: 80px; }
+        .countdown-item .number { font-family: 'Orbitron', sans-serif; font-size: 48px; font-weight: 900; color: var(--primary); display: block; line-height: 1; }
+        .countdown-item .label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-top: 5px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 25px; margin-bottom: 30px; }
+        .card { background: var(--bg-card); border-radius: 16px; padding: 25px; border: 1px solid var(--border); transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 10px 40px rgba(0,0,0,0.3); border-color: var(--primary); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border); }
+        .card-title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .card-title::before { content: ''; width: 4px; height: 24px; background: var(--primary); border-radius: 2px; }
+        .card-badge { background: var(--primary); color: #000; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+        .standings-list { list-style: none; }
+        .standings-item { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); transition: background 0.2s ease; }
+        .standings-item:last-child { border-bottom: none; }
+        .standings-item:hover { background: var(--bg-card-hover); margin: 0 -25px; padding-left: 25px; padding-right: 25px; }
+        .position { font-family: 'Orbitron', sans-serif; font-size: 20px; font-weight: 900; width: 40px; color: var(--primary); }
+        .team-icon { width: 40px; height: 40px; border-radius: 8px; margin-right: 15px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px; color: #fff; text-transform: uppercase; }
+        .team-mcl { background: #FF8000; } .team-rbr { background: #1E41FF; } .team-fer { background: #FF0000; }
+        .team-mer { background: #00D2BE; color: #000; } .team-ast { background: #006F62; } .team-wil { background: #005AFF; }
+        .team-haa { background: #FFFFFF; color: #000; } .team-visa { background: #6692FF; } .team-sau { background: #52e252; color: #000; } .team-alp { background: #FF87BC; }
+        .team-info { flex: 1; } .team-name { font-weight: 600; margin-bottom: 2px; } .team-drivers { font-size: 12px; color: var(--text-secondary); }
+        .points { text-align: right; } .points-value { font-family: 'Orbitron', sans-serif; font-size: 20px; font-weight: 700; color: var(--primary); } .points-label { font-size: 11px; color: var(--text-secondary); }
+        .race-list { list-style: none; }
+        .race-item { display: flex; align-items: center; padding: 15px; margin-bottom: 10px; background: var(--bg-card-hover); border-radius: 12px; border-left: 4px solid transparent; transition: all 0.3s ease; }
+        .race-item:hover { border-left-color: var(--primary); transform: translateX(5px); }
+        .race-item.next { border-left-color: var(--primary); background: linear-gradient(90deg, rgba(255,128,0,0.1) 0%, var(--bg-card-hover) 100%); }
+        .race-round { font-family: 'Orbitron', sans-serif; font-size: 14px; color: var(--text-secondary); width: 50px; }
+        .race-flag { font-size: 24px; margin-right: 15px; }
+        .race-details { flex: 1; } .race-track { font-weight: 600; } .race-date { font-size: 12px; color: var(--text-secondary); }
+        .race-status { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .race-status.upcoming { background: var(--primary); color: #000; } .race-status.completed { background: var(--border); color: var(--text-secondary); }
+        footer { text-align: center; padding: 30px; color: var(--text-secondary); font-size: 12px; border-top: 1px solid var(--border); margin-top: 30px; } footer span { color: var(--primary); }
+        .last-updated { font-size: 11px; color: var(--text-secondary); text-align: right; margin-bottom: 10px; }
+        @media (max-width: 768px) { .countdown-item .number { font-size: 32px; } .grid { grid-template-columns: 1fr; } header { flex-direction: column; text-align: center; } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .live-indicator { display: inline-flex; align-items: center; gap: 6px; color: #00FF00; font-size: 12px; font-weight: 600; }
+        .live-indicator::before { content: ''; width: 8px; height: 8px; background: #00FF00; border-radius: 50%; animation: pulse 1.5s infinite; }
+        .api-status { font-size: 11px; padding: 4px 8px; border-radius: 4px; margin-left: 10px; }
+        .api-status.ok { background: rgba(0,255,0,0.2); color: #00ff00; }
+        .api-status.error { background: rgba(255,0,0,0.2); color: #ff6666; }
+    </style>
+</head>
+<body data-team="mclaren">
+    <div class="container">
+        <header>
+            <div class="logo">
+                <h1>F1 2026</h1>
+                <span>指挥中心 V2</span>
+            </div>
+            <button class="refresh-btn" id="refreshBtn" onclick="loadAllData()">🔄 刷新数据</button>
+            <div class="team-switcher">
+                <button class="team-btn active" data-set-team="mclaren">迈凯伦</button>
+                <button class="team-btn" data-set-team="redbull">红牛</button>
+                <button class="team-btn" data-set-team="ferrari">法拉利</button>
+                <button class="team-btn" data-set-team="mercedes">梅奔</button>
+            </div>
+        </header>
+
+        <section class="countdown-section">
+            <div class="countdown-header">
+                <div>
+                    <div class="next-race">加载中...</div>
+                    <div class="race-info">
+                        <div class="race-info-item"><span class="live-indicator">API 实时数据</span><span class="api-status" id="apiStatus">检测中...</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="countdown">
+                <div class="countdown-item"><span class="number" id="days">--</span><span class="label">天</span></div>
+                <div class="countdown-item"><span class="number" id="hours">--</span><span class="label">时</span></div>
+                <div class="countdown-item"><span class="number" id="minutes">--</span><span class="label">分</span></div>
+                <div class="countdown-item"><span class="number" id="seconds">--</span><span class="label">秒</span></div>
+            </div>
+        </section>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">车队积分榜</h2>
+                    <span class="card-badge">实时数据</span>
+                </div>
+                <div class="last-updated" id="constructorUpdateTime"></div>
+                <div id="constructorStandings"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">车手积分榜</h2>
+                    <span class="card-badge">实时数据</span>
+                </div>
+                <div class="last-updated" id="driverUpdateTime"></div>
+                <div id="driverStandings"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">2026赛季赛程</h2>
+                    <span class="card-badge">全部场次</span>
+                </div>
+                <ul class="race-list" id="raceSchedule"><div class="loading"><div class="spinner"></div></div></ul>
+            </div>
+        </div>
+
+        <footer>
+            <p>F1 2026 指挥中心 V2 | 实时数据版</p>
+            <p>数据来源：Ergast F1 API | 使用多代理容错机制</p>
+            <p>Made with <span>♥</span> for F1 Fans</p>
+        </footer>
+    </div>
+
+    <script>
+        const teamMapping = {
+            'mclaren': { code: 'MCL', class: 'team-mcl', name: '迈凯伦' },
+            'red_bull': { code: 'RBR', class: 'team-rbr', name: '红牛' },
+            'ferrari': { code: 'FER', class: 'team-fer', name: '法拉利' },
+            'mercedes': { code: 'MER', class: 'team-mer', name: '梅赛德斯' },
+            'aston_martin': { code: 'AM', class: 'team-ast', name: '阿斯顿·马丁' },
+            'williams': { code: 'WIL', class: 'team-wil', name: '威廉姆斯' },
+            'haas': { code: 'HAA', class: 'team-haa', name: '哈斯' },
+            'rb': { code: 'VC', class: 'team-visa', name: 'Visa Cash App RB' },
+            'sauber': { code: 'SAU', class: 'team-sau', name: 'Kick 索伯' },
+            'alpine': { code: 'ALP', class: 'team-alp', name: 'Alpine' }
+        };
+
+        const flagMapping = {
+            'Bahrain': '🇧🇭', 'Saudi Arabia': '🇸🇦', 'Australia': '🇦🇺', 'Japan': '🇯🇵',
+            'China': '🇨🇳', 'USA': '🇺🇸', 'Italy': '🇮🇹', 'Monaco': '🇲🇨',
+            'Canada': '🇨🇦', 'Spain': '🇪🇸', 'Austria': '🇦🇹', 'UK': '🇬🇧',
+            'Hungary': '🇭🇺', 'Belgium': '🇧🇪', 'Netherlands': '🇳🇱', 'Singapore': '🇸🇬',
+            'Mexico': '🇲🇽', 'Brazil': '🇧🇷', 'UAE': '🇦🇪', 'Qatar': '🇶🇦',
+            'Azerbaijan': '🇦🇿', 'Argentina': '🇦🇷', 'Portugal': '🇵🇹', 'Russia': '🇷🇺',
+            'Turkey': '🇹🇷', 'South Africa': '🇿🇦', 'Malaysia': '🇲🇾', 'Korea': '🇰🇷',
+            'India': '🇮🇳', 'France': '🇫🇷', 'Germany': '🇩🇪', 'Emilia Romagna': '🇮🇹',
+            'Miami': '🇺🇸', 'Las Vegas': '🇺🇸', 'Austin': '🇺🇸', 'São Paulo': '🇧🇷'
+        };
+
+        // 备用 API 源
+        const API_SOURCES = [
+            { name: 'Ergast直接', url: 'https://ergast.com/api/f1/', proxy: false },
+            { name: 'AllOrigins代理', url: 'https://api.allorigins.win/raw?url=https://ergast.com/api/f1/', proxy: true },
+            { name: 'CorsProxy代理', url: 'https://corsproxy.io/?https://ergast.com/api/f1/', proxy: true },
+            { name: 'CodeTabs代理', url: 'https://api.codetabs.com/v1/proxy?quest=https://ergast.com/api/f1/', proxy: true }
+        ];
+
+        let currentApiIndex = 0;
+        let apiWorking = false;
+
+        function getTeamInfo(teamId) {
+            return teamMapping[teamId] || { code: teamId.substring(0,3).toUpperCase(), class: 'team-mcl', name: teamId };
+        }
+
+        function getFlag(country) {
+            return flagMapping[country] || '🏁';
+        }
+
+        function formatDate(dateStr, timeStr) {
+            const date = new Date(`${dateStr}T${timeStr || '00:00:00'}`);
+            return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: timeStr ? '2-digit' : undefined, minute: timeStr ? '2-digit' : undefined });
+        }
+
+        function getApiBase() {
+            return API_SOURCES[currentApiIndex];
+        }
+
+        async function fetchWithFallback(endpoint, timeout = 10000) {
+            const errors = [];
+            
+            for (let i = 0; i < API_SOURCES.length; i++) {
+                const source = API_SOURCES[(currentApiIndex + i) % API_SOURCES.length];
+                const url = source.url + endpoint;
+                
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), timeout);
+                    
+                    const response = await fetch(url, { 
+                        signal: controller.signal,
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    const text = await response.text();
+                    
+                    // 尝试解析 JSON
+                    let data;
+                    try {
+                        data = JSON.parse(text);
+                    } catch (e) {
+                        // 可能是 JSONP，尝试提取
+                        const match = text.match(/\{[\s\S]*\}/);
+                        if (match) {
+                            data = JSON.parse(match[0]);
+                        } else {
+                            throw new Error('Invalid JSON');
+                        }
+                    }
+                    
+                    // 成功了，记住这个源
+                    currentApiIndex = (currentApiIndex + i) % API_SOURCES.length;
+                    apiWorking = true;
+                    updateApiStatus(true, source.name);
+                    return data;
+                    
+                } catch (error) {
+                    errors.push(`${source.name}: ${error.message}`);
+                }
+            }
+            
+            apiWorking = false;
+            updateApiStatus(false, errors.join(', '));
+            throw new Error('All API sources failed: ' + errors.join('; '));
+        }
+
+        function updateApiStatus(ok, message) {
+            const status = document.getElementById('apiStatus');
+            if (ok) {
+                status.textContent = '✓ ' + message;
+                status.className = 'api-status ok';
+            } else {
+                status.textContent = '✗ API 异常';
+                status.className = 'api-status error';
+                console.error('API errors:', message);
+            }
+        }
+
+        async function loadConstructorStandings() {
+            const container = document.getElementById('constructorStandings');
+            try {
+                const data = await fetchWithFallback('current/constructorStandings.json');
+                const standings = data.MRData?.StandingsTable?.StandingsLists?.[0]?.ConstructorStandings || [];
+                
+                if (standings.length === 0) throw new Error('No data');
+                
+                let html = '<ul class="standings-list">';
+                standings.slice(0, 10).forEach(item => {
+                    const team = getTeamInfo(item.Constructor.constructorId);
+                    html += `<li class="standings-item"><span class="position">${item.position}</span><div class="team-icon ${team.class}">${team.code}</div><div class="team-info"><div class="team-name">${item.Constructor.name}</div></div><div class="points"><div class="points-value">${item.points}</div><div class="points-label">积分</div></div></li>`;
+                });
+                html += '</ul>';
+                
+                container.innerHTML = html;
+                document.getElementById('constructorUpdateTime').textContent = '更新时间: ' + new Date().toLocaleTimeString('zh-CN');
+            } catch (error) {
+                container.innerHTML = '<div class="error">加载失败<br><small>' + error.message + '</small></div>';
+            }
+        }
+
+        async function loadDriverStandings() {
+            const container = document.getElementById('driverStandings');
+            try {
+                const data = await fetchWithFallback('current/driverStandings.json');
+                const standings = data.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings || [];
+                
+                if (standings.length === 0) throw new Error('No data');
+                
+                let html = '<ul class="standings-list">';
+                standings.slice(0, 10).forEach(item => {
+                    const team = getTeamInfo(item.Constructors[0].constructorId);
+                    html += `<li class="standings-item"><span class="position">${item.position}</span><div class="team-icon ${team.class}">${team.code}</div><div class="team-info"><div class="team-name">${item.Driver.givenName} ${item.Driver.familyName}</div><div class="team-drivers">#${item.Driver.permanentNumber} · ${item.Constructors[0].name}</div></div><div class="points"><div class="points-value">${item.points}</div><div class="points-label">积分</div></div></li>`;
+                });
+                html += '</ul>';
+                
+                container.innerHTML = html;
+                document.getElementById('driverUpdateTime').textContent = '更新时间: ' + new Date().toLocaleTimeString('zh-CN');
+            } catch (error) {
+                container.innerHTML = '<div class="error">加载失败<br><small>' + error.message + '</small></div>';
+            }
+        }
+
+        async function loadSchedule() {
+            const container = document.getElementById('raceSchedule');
+            try {
+                const data = await fetchWithFallback('current.json');
+                const races = data.MRData?.RaceTable?.Races || [];
+                const now = new Date();
+                
+                let html = '';
+                let nextRaceFound = false;
+                let nextRace = null;
+                
+                races.forEach((race) => {
+                    const raceDate = new Date(`${race.date}T${race.time || '00:00:00Z'}`);
+                    const isNext = !nextRaceFound && raceDate > now;
+                    const isPast = raceDate < now;
+                    
+                    if (isNext) {
+                        nextRaceFound = true;
+                        nextRace = race;
+                    }
+                    
+                    html += `<li class="race-item ${isNext ? 'next' : ''}"><span class="race-round">R${race.round}</span><span class="race-flag">${getFlag(race.Circuit.Location.country)}</span><div class="race-details"><div class="race-track">${race.raceName}</div><div class="race-date">${formatDate(race.date, race.time)} · ${race.Circuit.circuitName}</div></div><span class="race-status ${isNext ? 'upcoming' : (isPast ? 'completed' : 'upcoming')}">${isPast ? '已结束' : (isNext ? '下一场' : '即将到来')}</span></li>`;
+                });
+                
+                container.innerHTML = html;
+                
+                if (nextRace) {
+                    document.querySelector('.next-race').innerHTML = `下一场比赛：<span class="race-name">${nextRace.raceName}</span>`;
+                    startCountdown(`${nextRace.date}T${nextRace.time || '00:00:00Z'}`);
+                } else {
+                    document.querySelector('.next-race').innerHTML = `赛季已结束 · <span class="race-name">敬请期待下赛季</span>`;
+                }
+            } catch (error) {
+                container.innerHTML = '<div class="error">加载失败<br><small>' + error.message + '</small></div>';
+            }
+        }
+
+        let countdownInterval;
+        function startCountdown(targetDateStr) {
+            if (countdownInterval) clearInterval(countdownInterval);
+            
+            function update() {
+                const target = new Date(targetDateStr);
+                const now = new Date();
+                const diff = target - now;
+
+                if (diff > 0) {
+                    document.getElementById('days').textContent = String(Math.floor(diff / (1000 * 60 * 60 * 24))).padStart(2, '0');
+                    document.getElementById('hours').textContent = String(Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))).padStart(2, '0');
+                    document.getElementById('minutes').textContent = String(Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, '0');
+                    document.getElementById('seconds').textContent = String(Math.floor((diff % (1000 * 60)) / 1000)).padStart(2, '0');
+                }
+            }
+            
+            update();
+            countdownInterval = setInterval(update, 1000);
+        }
+
+        const teamBtns = document.querySelectorAll('.team-btn');
+        teamBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                teamBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.body.setAttribute('data-team', btn.getAttribute('data-set-team'));
+            });
+        });
+
+        async function loadAllData() {
+            const btn = document.getElementById('refreshBtn');
+            btn.classList.add('loading');
+            btn.textContent = '⏳ 加载中...';
+            
+            await Promise.all([loadConstructorStandings(), loadDriverStandings(), loadSchedule()]);
+            
+            btn.classList.remove('loading');
+            btn.textContent = '🔄 刷新数据';
+        }
+
+        loadAllData();
+    </script>
+</body>
+</html>
